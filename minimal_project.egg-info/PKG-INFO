@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: minimal-project
+Version: 0.1.0
+Summary: A minimal project to install numpy and pandas
+Requires-Python: >=3.9
+License-File: LICENSE
+Requires-Dist: numpy
+Requires-Dist: pandas
+Dynamic: license-file

@@ -1,0 +1,13 @@
+[project]
+name = "minimal-project"
+version = "0.1.0"
+description = "A minimal project to install numpy and pandas"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy",
+    "pandas"
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
