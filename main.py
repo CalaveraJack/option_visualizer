@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.patches import FancyArrow
-
+from matplotlib.widgets import Slider
 
 class Option:
     def __init__(self, strike, premium, opt_type, style, maturity_date, purchase_date,
@@ -43,56 +43,49 @@ class Option:
     def payoff(self, spot, time, avg_spot=None):
         if time < self.purchase_date:
             return np.zeros_like(spot)
-    
+
         is_maturity = np.isclose(time, self.maturity_date)
-        base_spot = avg_spot if avg_spot is not None else spot
-    
-        # Simulated spot path for barrier monitoring (flat for simplicity)
-        # Assume a simple increasing spot path up to the current value
-        spot_path = np.linspace(self.strike * 0.8, spot[0], len(self.barrier_monitoring))
-        # Assumption: flat path
-    
-        barrier_state = self.check_barrier(spot_path)
-    
-        if barrier_state == "inactive":
-            return np.full_like(spot, -self.premium)  # Only premium impact
-        elif barrier_state == "knockout":
-            return np.full_like(spot, self.rebate - self.premium)
-    
-        # Option is active → normal behavior
+
+        if self.style == 'asian' and avg_spot is not None:
+            if self.opt_type == 'call':
+                return np.full_like(spot, max(avg_spot - self.strike, 0) - self.premium)
+            elif self.opt_type == 'put':
+                return np.full_like(spot, max(self.strike - avg_spot, 0) - self.premium)
+
+        # For non-Asian or when avg_spot is None
         if not is_maturity:
             if self.style in ['european', 'asian']:
                 return np.full_like(spot, -self.premium)
             elif self.style == 'american':
                 if self.opt_type == 'call':
-                    return np.maximum(base_spot - self.strike, 0) - self.premium
+                    return np.maximum(spot - self.strike, 0) - self.premium
                 elif self.opt_type == 'put':
-                    return np.maximum(self.strike - base_spot, 0) - self.premium
-    
-        # At maturity
+                    return np.maximum(self.strike - spot, 0) - self.premium
+
         if self.opt_type == 'call':
-            return np.maximum(base_spot - self.strike, 0) - self.premium
+            return np.maximum(spot - self.strike, 0) - self.premium
         elif self.opt_type == 'put':
-            return np.maximum(self.strike - base_spot, 0) - self.premium
-    
+            return np.maximum(self.strike - spot, 0) - self.premium
 
-
-
-    def calculate_pl_surface(self, spot_range, time_range):
+    def calculate_pl_surface(self, spot_range, time_range, avg_spot_override=None):
         S, T = np.meshgrid(spot_range, time_range)
         PnL = np.zeros_like(S)
-    
+
         for i, t in enumerate(time_range):
             if self.style == 'asian':
-                relevant_dates = [d for d in self.asianing_dates if d <= t]
-                avg_spot = S[i, :] if relevant_dates else None
+                # Use externally overridden average spot (e.g., from slider), if provided
+                if avg_spot_override is not None:
+                    avg_spot = avg_spot_override
+                else:
+                    # Compute average from path history approximation (based on time)
+                    relevant_dates = [d for d in self.asianing_dates if d <= t]
+                    avg_spot = np.mean(S[i, :]) if relevant_dates else None
+
                 PnL[i, :] = self.payoff(S[i, :], t, avg_spot=avg_spot)
             else:
                 PnL[i, :] = self.payoff(S[i, :], t)
-    
+
         return S, T, PnL
-
-
 
     def __add__(self, other):
         if isinstance(other, Option):
@@ -237,6 +230,66 @@ def visualize_portfolio(portfolio_like, spot_range, time_range, show_underlying=
         plt.grid(True)
         plt.show()
 
+def visualize_portfolio_maturity_with_asian_avg_slider(portfolio_like, spot_range, maturity_time, avg_spot_range=None):
+    import matplotlib.pyplot as plt
+
+    # Normalize portfolio
+    if isinstance(portfolio_like, Option):
+        portfolio = Portfolio([portfolio_like])
+    else:
+        portfolio = portfolio_like
+
+    # Identify Asian option
+    asian_opts = [opt for opt in portfolio.products if opt.style == 'asian']
+    if not asian_opts:
+        print("No Asian option found in portfolio.")
+        return
+
+    asian_opt = asian_opts[0]
+
+    # Set slider range
+    if avg_spot_range is None:
+        avg_spot_range = (min(spot_range), max(spot_range))
+    initial_avg = sum(avg_spot_range) / 2
+
+    # Function to calculate total payoff at maturity
+    def compute_portfolio_payoff(avg_spot_override):
+        total_pnl = np.zeros_like(spot_range)
+        for opt in portfolio.products:
+            if opt == asian_opt:
+                pnl = opt.payoff(spot_range, maturity_time, avg_spot=avg_spot_override)
+            else:
+                pnl = opt.payoff(spot_range, maturity_time)
+            total_pnl += pnl
+        return total_pnl
+
+    # Initial data
+    initial_pnl = compute_portfolio_payoff(initial_avg)
+
+    # Set up figure and plot
+    fig, ax = plt.subplots(figsize=(9, 5))
+    plt.subplots_adjust(bottom=0.25)
+    line, = ax.plot(spot_range, initial_pnl, label='Portfolio P/L')
+    ax.set_xlabel("Spot Price at Maturity")
+    ax.set_ylabel("Profit / Loss")
+    ax.set_title("Portfolio P/L at Maturity (with Avg Spot Slider)")
+    ax.grid(True)
+    ax.legend()
+
+    # Slider setup
+    ax_slider = plt.axes([0.2, 0.1, 0.65, 0.03])
+    slider = Slider(ax_slider, 'Avg Spot (Asian)', avg_spot_range[0], avg_spot_range[1], valinit=initial_avg)
+
+    def update(val):
+        avg_spot = slider.val
+        new_pnl = compute_portfolio_payoff(avg_spot)
+        line.set_ydata(new_pnl)
+        fig.canvas.draw_idle()
+
+    slider.on_changed(update)
+    plt.show()
+
+
 # Example usage
 if __name__ == "__main__":
     # Time and spot axis
@@ -245,35 +298,27 @@ if __name__ == "__main__":
     # Barrier monitoring points (same for all, can be customized per product)
     barrier_monitoring = np.linspace(0.0, 1.0, 50)
     
-    # 1. European Call with an Up-and-In barrier at spot = 25
+    # 1. European Call
     call = Option(
         strike=20,
         premium=1,
         opt_type='call',
         style='european',
         maturity_date=1.0,
-        purchase_date=0.2,
-        barrier=25,
-        barrier_type='up-in',
-        barrier_monitoring=barrier_monitoring,
-        rebate=0
+        purchase_date=0.2
     )
     
-    # 2. American Put with a Down-and-Out barrier at spot = 15
+    # 2. American Put
     put = Option(
         strike=20,
         premium=1,
         opt_type='put',
         style='american',
         maturity_date=1.0,
-        purchase_date=0.0,
-        barrier=15,
-        barrier_type='down-out',
-        barrier_monitoring=barrier_monitoring,
-        rebate=0  # or set a rebate like 0.5 if desired
+        purchase_date=0.0
     )
     
-    # 3. Asian Put with a KIKO barrier at spot = 17
+    # 3. Asian Put
     asian = Option(
         strike=20,
         premium=1,
@@ -281,11 +326,7 @@ if __name__ == "__main__":
         style='asian',
         maturity_date=1.0,
         purchase_date=0.3,
-        asianing_dates=np.linspace(0.5, 1.0, 5),
-        barrier=17,
-        barrier_type='kiko',
-        barrier_monitoring=barrier_monitoring,
-        rebate=0
+        asianing_dates=np.linspace(0.5, 1.0, 5)
     )
     
 
@@ -294,3 +335,6 @@ if __name__ == "__main__":
     
     # Calculate and plot
     visualize_portfolio(portfolio, spot_prices, time_points, show_underlying="long")
+
+    # New interactive one with slider for avg spot
+    visualize_portfolio_maturity_with_asian_avg_slider(portfolio, spot_prices, maturity_time=1.0)
