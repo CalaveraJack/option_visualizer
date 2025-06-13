@@ -5,7 +5,9 @@ description = "A minimal project to install numpy and pandas"
 requires-python = ">=3.9"
 dependencies = [
     "numpy",
-    "pandas"
+    "pandas",
+    "mpl-tools",
+    "matplotlib"
 ]
 
 [build-system]

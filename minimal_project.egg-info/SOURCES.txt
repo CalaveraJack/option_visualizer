@@ -1,5 +1,6 @@
 LICENSE
 README.md
+main.py
 pyproject.toml
 minimal_project.egg-info/PKG-INFO
 minimal_project.egg-info/SOURCES.txt

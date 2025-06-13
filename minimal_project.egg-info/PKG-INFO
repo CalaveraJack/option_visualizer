@@ -6,4 +6,6 @@ Requires-Python: >=3.9
 License-File: LICENSE
 Requires-Dist: numpy
 Requires-Dist: pandas
+Requires-Dist: mpl-tools
+Requires-Dist: matplotlib
 Dynamic: license-file
