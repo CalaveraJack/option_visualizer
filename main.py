@@ -48,9 +48,9 @@ class Option:
 
         if self.style == 'asian' and avg_spot is not None:
             if self.opt_type == 'call':
-                return np.full_like(spot, max(avg_spot - self.strike, 0) - self.premium)
+                return (np.maximum(self.strike - avg_spot, 0) - self.premium) * np.ones_like(spot)
             elif self.opt_type == 'put':
-                return np.full_like(spot, max(self.strike - avg_spot, 0) - self.premium)
+                return (np.maximum(avg_spot - self.strike, 0) - self.premium) * np.ones_like(spot)
 
         # For non-Asian or when avg_spot is None
         if not is_maturity:
@@ -62,9 +62,9 @@ class Option:
                 elif self.opt_type == 'put':
                     return np.maximum(self.strike - spot, 0) - self.premium
 
-        if self.opt_type == 'call':
+        if self.opt_type == 'call' and self.style != 'asian':
             return np.maximum(spot - self.strike, 0) - self.premium
-        elif self.opt_type == 'put':
+        elif self.opt_type == 'put' and self.style != 'asian':
             return np.maximum(self.strike - spot, 0) - self.premium
 
     def calculate_pl_surface(self, spot_range, time_range, avg_spot_override=None):
