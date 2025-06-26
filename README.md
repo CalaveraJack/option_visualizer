@@ -1,5 +1,5 @@
 # Option Visualizer
-This project is dedicated to the payoff visualization of the simple option portfolios
+This project is dedicated to the payoff visualization of the simple option portfolios/p
 At the current iteration the project supports visualization of the portfolios with asian, european and american options with the following limitations:
 1) No barrier functionality enabled
 2) Asian options are not realized path-dependent, thus the averaged value over asianing dates is inputted via the slider
